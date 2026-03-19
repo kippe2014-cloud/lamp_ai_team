@@ -1,0 +1,16 @@
+[
+ {
+  "name": "Chorona Light",
+  "price": 12000,
+  "style": "этно",
+  "material": "фанера",
+  "description": "декоративный якутский светильник"
+ },
+ {
+  "name": "Nord Minimal",
+  "price": 8500,
+  "style": "скандинавский",
+  "material": "фанера",
+  "description": "минималистичный светильник"
+ }
+]
