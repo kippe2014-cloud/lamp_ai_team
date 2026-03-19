@@ -1,110 +1,68 @@
-from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-
-import csv
-from datetime import datetime
 import os
+import csv
+from telegram import Update, InputMediaPhoto
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-api_key = os.getenv("OPENAI_API_KEY")
-if not api_key:
-    raise ValueError("API key не найден")
+# Получаем токен бота и ключ OpenAI из переменных окружения
+TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")  # если используешь AI
 
-# функция сохранения клиента
-def save_client(update):
+# Файл с клиентами
+CLIENTS_FILE = "clients.csv"
 
-    name = update.message.from_user.first_name
-    username = update.message.from_user.username
-    message = update.message.text
-    date = datetime.now()
+# Файл с каталогом товаров (фото)
+CATALOG_FOLDER = "catalog"  # создайте папку catalog и положите туда картинки товаров
+CATALOG = [
+    {"name": "Светильник 1", "filename": "001.jpg", "description": "Красивый светильник для дома"},
+    {"name": "Светильник 2", "filename": "002.jpg", "description": "Настольная лампа стильная"},
+]
 
-    with open("clients.csv", "a", newline="", encoding="utf-8-sig") as file:
-        writer = csv.writer(file)
-        writer.writerow([date, name, username, message])
+# ----------------- КЛИЕНТЫ -----------------
+def add_client(user_id, username):
+    """Добавляем клиента в CSV если его там нет"""
+    try:
+        with open(CLIENTS_FILE, "r", newline="", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            for row in reader:
+                if str(user_id) == row[0]:
+                    return  # клиент уже есть
+    except FileNotFoundError:
+        pass  # файл ещё не создан
 
-
+    # Добавляем нового клиента
+    with open(CLIENTS_FILE, "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow([user_id, username])
+        
+# ----------------- КОМАНДЫ -----------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    add_client(user.id, user.username)
+    await update.message.reply_text(f"Привет, {user.first_name}! Добро пожаловать в магазин светильников.")
 
-    keyboard = [
-        ["Каталог"],
-        ["Цена"],
-        ["Доставка"],
-        ["Связаться с мастером"]
-    ]
+async def catalog(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Отправляем каталог товаров"""
+    media = []
+    for item in CATALOG:
+        path = os.path.join(CATALOG_FOLDER, item["filename"])
+        media.append(InputMediaPhoto(open(path, "rb"), caption=f"{item['name']}\n{item['description']}"))
 
-    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    # Telegram позволяет отправлять до 10 фото за раз
+    for i in range(0, len(media), 10):
+        await update.message.reply_media_group(media[i:i+10])
 
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Здравствуйте 👋\n"
-        "Я консультант магазина светильников.\n"
-        "Выберите раздел:",
-        reply_markup=reply_markup
+        "/start - начать\n/catalog - посмотреть каталог\n/help - помощь"
     )
 
+# ----------------- MAIN -----------------
+if __name__ == "__main__":
+    app = ApplicationBuilder().token(TOKEN).build()
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.photo:
-        file_id = update.message.photo[-1].file_id
-        await update.message.reply_text(f"ID фото: {file_id}")
-        return
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("catalog", catalog))
+    app.add_handler(CommandHandler("help", help_command))
 
-    save_client(update)
-
-    text = update.message.text.lower()
-    # сохраняем клиента
-    save_client(update)
-
-    text = update.message.text.lower()
-
-    if "каталог" in text:
-
-        await update.message.reply_text("Наши светильники:")
-
-        await update.message.reply_photo(
-            photo="https://via.placeholder.com/500",
-            caption="Светильник CHORON\nЦена: 6500 ₽"
-        )
-
-        await update.message.reply_photo(
-            photo="https://png.pngtree.com/thumb_back/fh260/background/20230610/pngtree-picture-of-a-blue-bird-on-a-black-background-image_2937385.jpg",
-            caption="Светильник YAKUT\nЦена: 7200 ₽"
-        )
-
-    elif "цена" in text:
-
-        await update.message.reply_text(
-            "💡 Цена наших светильников:\n\n"
-            "от 3000 ₽ до 12000 ₽"
-        )
-
-
-    # elif "доставка" in text:
-
-     #  await update.message.reply_text(
-      #      "🚚 Доставка:\n\n"
-       #     "СДЭК\n"
-        #    "Почта России\n\n"
-         #   "Отправляем по всей России."
-        #)
-
-    elif "связаться" in text:
-
-        await update.message.reply_text(
-            "Напишите мастеру:\n"
-            "@Filin_zx"
-        )
-
-    else:
-
-        await update.message.reply_text(
-            "Выберите кнопку в меню."
-        )
-
-
-app = ApplicationBuilder().token(TOKEN).build()
-
-app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT, handle_message))
-
-print("Бот запущен...")
-
-app.run_polling()
+    print("Бот запущен...")
+    app.run_polling()
