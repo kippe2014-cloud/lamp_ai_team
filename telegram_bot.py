@@ -5,8 +5,9 @@ import csv
 from datetime import datetime
 import os
 
-TOKEN = os.getenv("BOT_TOKEN")
-print("TOKEN:", TOKEN)
+api_key = os.getenv("OPENAI_API_KEY")
+if not api_key:
+    raise ValueError("API key не найден")
 
 # функция сохранения клиента
 def save_client(update):
